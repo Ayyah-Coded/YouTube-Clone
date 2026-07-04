@@ -105,8 +105,7 @@ $("uploadForm").onsubmit = async e => {
 
     $("uploadOverlay").classList.add("active")
     $("submitBtn").disabled = true;
-    $('errorContainer').innerHtml = ""
-    window.onbeforeunload = () => "Upload in progress"
+    $('errorContainer').innerHTML = ""    window.onbeforeunload = () => "Upload in progress"
 
     try {
         const res = await fetch("{% url 'videos:upload_submit' %}", {

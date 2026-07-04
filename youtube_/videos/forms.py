@@ -14,11 +14,11 @@ class VideoUploadForm(forms.Form):
   )
   description = forms.CharField(
     required=False,
-    widget=forms.TextArea(
+    widget=forms.Textarea(
       attrs={
         "class": "form-input",
         "placeholder": "Enter video description",
-        "row": 4
+        "rows": 4
       }
     )
   )

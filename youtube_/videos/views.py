@@ -25,7 +25,7 @@ def video_upload(request):
       )
 
       thumbnail_url = ""
-      if custom_thumbnail and custom_thumbnail.startswith"data:image:
+      if custom_thumbnail and custom_thumbnail.startswith("data:image"):
         try:
           base_name = video_file.name.split(".", 1)[0]
           thumb_result = upload_thumbnail(
@@ -34,7 +34,7 @@ def video_upload(request):
           )
           thumbnail_url = thumb_result["url"]
         except Exception as e:
-          pass
+          logger.warning("Thumbnail upload failed: %s", e)
 
       video = Video.objects.create(
         user=request.user,
@@ -54,7 +54,7 @@ def video_upload(request):
       return JsonResponse({ "success": False, "error": str(e) })
     
   errors = []
-  for field, field_errors in forms.error.items():
+  for field, field_errors in forms.errors.items():
     for error in field_errors:
       errors.append(f"{field}: {error}" if field != "__all__" else error)
 
@@ -63,4 +63,4 @@ def video_upload(request):
 
 @login_required
 def video_upload_page(request):
-  return render( request, template_name="videos/upload.html", context={form: VideoUploadForm()} )
+  return render( request, template_name="videos/upload.html", context={"form": VideoUploadForm()} )
