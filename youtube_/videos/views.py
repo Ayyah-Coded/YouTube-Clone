@@ -1,13 +1,35 @@
+import logging
+
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from .models import Video
+from .models import Video, VideoLike
 from .forms import VideoUploadForm
-from .imagekit_client import upload_thumbnail, upload_video
+from .imagekit_client import upload_thumbnail, upload_video, delete_video as delete_storage_video
 
-# Create your views here.
+logger = logging.getLogger(__name__)
+
+
+def video_detail(request, video_id):
+  video = get_object_or_404(Video.objects, id=video_id)
+
+  video.views += 1
+  video.save(update_fields=["views"])
+
+  return render(request, 'videos/detail.html', {"video": video})
+
+
+def video_list(request):
+  videos = Video.objects.all()
+
+  return render(request, 'videos/list.html', {"videos": videos})
+
+
+def channel_video(request, username):
+  videos = Video.objects.filter(user__username=username)
+  return render(request, 'videos/channel.html', {"videos": videos, "channel_name": username})
 
 
 @login_required
@@ -54,7 +76,7 @@ def video_upload(request):
       return JsonResponse({ "success": False, "error": str(e) })
     
   errors = []
-  for field, field_errors in forms.errors.items():
+  for field, field_errors in form.errors.items():
     for error in field_errors:
       errors.append(f"{field}: {error}" if field != "__all__" else error)
 
@@ -63,4 +85,68 @@ def video_upload(request):
 
 @login_required
 def video_upload_page(request):
-  return render( request, template_name="videos/upload.html", context={"form": VideoUploadForm()} )
+  return render(request, 'videos/upload.html', {"form": VideoUploadForm()})
+
+
+@login_required
+@require_POST
+def delete_video(request, video_id):
+  video = get_object_or_404(Video, id=video_id, user=request.user)
+
+  try:
+    delete_storage_video(video.file_id)
+  except Exception as e:
+    print(e)
+    pass
+
+  video.delete()
+
+  return JsonResponse({ "success": True, "message": "Video deleted successfully" })
+
+
+@login_required
+@require_POST
+def video_vote(request, video_id):
+  video = get_object_or_404(Video, id=video_id)
+  vote_type = request.POST.get("vote")
+
+  if vote_type not in ["like", "dislike"]:
+    return JsonResponse(data: {"success": False, "error": "Invalid vote"}, status=400)
+  
+  value = VideoLike.LIKE if vote_type == "like" else Video.DISLIKE
+
+  existing_vote = VideoLike.objects.filter(user=request.user, video=video).first()
+
+  if existing_vote:
+    if existing_vote.value == value:
+      if value == VideoLike.LIKE:
+        video.likes -= 1
+      else:
+        video.dislikes -= 1
+      existing_vote.delete()
+      user_vote = None
+    else:
+      if value == VideoLike.LIKE:
+        video.likes += 1
+        video.dislikes -= 1
+      else:
+        video.likes -= 1
+        video.dislikes += 1
+      existing_vote.value = value
+      existing_vote.save()
+      user_vote = value
+  else:
+    VideoLike.objects.create(user=request.user, video=video, value=value)
+    if value == VideoLike.LIKE:
+      video.likes += 1
+    else:
+      video.dislikes += 1
+    user_vote = value
+  
+  video.save(update_fields=["likes", "dislikes"])
+
+  return JsonResponse({
+    "likes": video.likes,
+    "dislikes": video.dislikes,
+    "user_vote": user_vote
+  })
